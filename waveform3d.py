@@ -1,4 +1,5 @@
-import json, urllib2
+import json 
+import urllib3
 import librosa
 import numpy as np
 import pyen
@@ -29,8 +30,8 @@ class Waveform3d(object):
             
             # Additional settings
             self.scale_factor = 0.5
-        except Exception, e:
-            print e
+        except Exception as e:
+            print(e)
 
 
     def _get_segments(self, en, artist_name, track_name):
@@ -40,7 +41,7 @@ class Waveform3d(object):
         if response['status']['message'] == 'Success':  # track found
             # Get waveform
             analysis_url = response['songs'][0]['audio_summary']['analysis_url']
-            analysis_response = urllib2.urlopen(analysis_url).read()
+            analysis_response = urllib3.urlopen(analysis_url).read()
             analysis_response = json.loads(analysis_response)
             segments = analysis_response['segments']
         return segments
@@ -50,8 +51,8 @@ class Waveform3d(object):
         try:
             features = [s[mode] for s in segments]
             return features
-        except Exception, e:
-            print e
+        except Exception as e:
+            print(e)
             return None
 
 
@@ -84,17 +85,17 @@ class Waveform3d(object):
     def _rescale_list(self, input_list, a, b):
         input_max = max(input_list)
         rescale_factor = (b - a) / float(input_max)
-        for i in xrange(len(input_list)):
+        for i in range(len(input_list)):
             input_list[i] *= rescale_factor
         return input_list
 
 
     def _increase_model_depth(self, matrix, n):
         new_matrix = []
-        for i in xrange(len(matrix)):  # for each column...
+        for i in range(len(matrix)):  # for each column...
             new_col = []
-            for j in xrange(len(matrix[i])):  # for each row...
-                for k in xrange(n):  # for n times...
+            for j in range(len(matrix[i])):  # for each row...
+                for k in range(n):  # for n times...
                     new_col.append(matrix[i][j])
             new_matrix.append(new_col)
         return new_matrix
@@ -107,9 +108,8 @@ class Waveform3d(object):
             settings_filename: name of the file where settings
                                are stored
         """
-        settings_file = open(settings_filename, 'rb')
-        settings = json.load(settings_file)
-        settings_file.close()
+        with open(settings_filename, 'rb') as settings_file:
+            settings = json.load(settings_file)
         # Store settings
         self.EN_API_KEY = settings['en_api_key']
         self.OUTPUT_FOLDER = settings['output_folder']
@@ -128,7 +128,7 @@ class Waveform3d(object):
         if len(waveform) > 0:
             res_waveform = []
             stored_wf_val = waveform[0]
-            for i in xrange(1,len(waveform)):
+            for i in range(1,len(waveform)):
                 curr_wf_val = waveform[i]
                 if i % n_bars_to_merge == 0:
                     stored_wf_val = curr_wf_val
@@ -137,14 +137,13 @@ class Waveform3d(object):
 
 
     def make_waveform_3d(self, waveform, height):
-        print "Creating the 3D waveform"
+        print("Creating the 3D waveform")
         n = len(waveform)  # number of bars
         m = int(ceil(max(waveform)))  # max bars height
         waveform_3d = np.zeros(shape=(2*m,n))
         min_loudness_value = max(waveform) / 10.0
-        for i in xrange(m):  # for each row...
-            res_row = []
-            for j in xrange(n):  # for each column...
+        for i in range(m):  # for each row...
+            for j in range(n):  # for each column...
                 curr_l_value = waveform[j] + min_loudness_value
                 if i < curr_l_value:  # if we are in the "colored" part of the bar...
                     waveform_3d[m-i][j] = 1
@@ -171,7 +170,7 @@ class Waveform3d(object):
 
         # Interact with The Echo Nest services
         self.en = pyen.Pyen(self.EN_API_KEY)
-        print "Searching " + track_name + " by " + artist_name + " on The Echo Nest"
+        print("Searching " + track_name + " by " + artist_name + " on The Echo Nest")
         audio_segments = self._get_segments(self.en, artist_name, track_name)
         if audio_segments is not None:
             audio_features = self._get_features_list(audio_segments, mode)
@@ -191,7 +190,7 @@ class Waveform3d(object):
                 model_3d = np.array(new_features)
 
             # Export 3D model
-            print "Exporting the 3D file"
+            print("Exporting the 3D file")
             if self.OUTPUT_FOLDER[-1] != '/':
                 self.OUTPUT_FOLDER.append('/')
             output_filename = self.OUTPUT_FOLDER + artist_name + " - " + track_name + "_" + mode + ".stl"
@@ -211,7 +210,7 @@ class Waveform3d(object):
                   options: waveform, stft
         """
 
-        print "Loading audio file " + filepath
+        print("Loading audio file " + filepath)
         waveform, sr = librosa.load(filepath)
 
         if mode == "waveform":  # time domain analysis
@@ -221,7 +220,7 @@ class Waveform3d(object):
                 downsample_factor = (10 ** (m-1-3) * int(str(len(waveform))[0]))  # 1k (i.e. 10^3) magnitude
             else:
                 downsample_factor = 1
-            half_waveform = [waveform[i] for i in xrange(len(waveform)) if waveform[i]>0 and i%downsample_factor==0]
+            half_waveform = [waveform[i] for i in range(len(waveform)) if waveform[i]>0 and i%downsample_factor==0]
 
             # Reshape and rescale waveform
             processed_waveform = self._movingaverage(half_waveform, self.ma_window_size)
@@ -230,13 +229,13 @@ class Waveform3d(object):
             processed_waveform = self.make_waveform_square(processed_waveform, self.n_waveform_bars)  # make waveform "square"
 
             # Convert 2D waveform into 3D
-            print "Creating 3D model"
+            print("Creating 3D model")
             model_3d = self.make_waveform_3d(processed_waveform, self.height_Z)
 
         else:  # frequency domain analysis
             self.mask_val /= 100
             # Get STFT magnitude
-            print "Analyzing frequency components"
+            print("Analyzing frequency components")
             stft = librosa.stft(waveform, n_fft=256)
             stft, phase = librosa.magphase(stft)
             # Downsample and rescale STFT
@@ -248,13 +247,13 @@ class Waveform3d(object):
             new_stft = []
             for curr_fft in stft:
                 min_loudness_value = max(curr_fft)
-                ds_fft = [curr_fft[j] + min_loudness_value for j in xrange(len(curr_fft)) if j%downsample_factor==0]
+                ds_fft = [curr_fft[j] + min_loudness_value for j in range(len(curr_fft)) if j%downsample_factor==0]
                 ds_fft = self._rescale_list(ds_fft, self.min_absolute_value, self.height_Z)
                 new_stft.append(ds_fft)
-            print "Creating 3D model"
+            print("Creating 3D model")
             model_3d = np.array(new_stft)
 
-        print "Exporting the 3D file"
+        print("Exporting the 3D file")
         if self.OUTPUT_FOLDER[-1] != '/':
             self.OUTPUT_FOLDER.append('/')
         output_filename = self.OUTPUT_FOLDER + filepath.split('/')[-1][:-4] + "_" + mode + ".stl"
